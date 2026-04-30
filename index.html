@@ -535,7 +535,7 @@ Return 8-15 deals. Prioritize deals in: ${activeVerticals}.`;
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
+        max_tokens: 4000,
         tools: [{"type":"web_search_20250305","name":"web_search"}],
         messages: [{role:'user', content: prompt}]
       })
@@ -546,9 +546,17 @@ Return 8-15 deals. Prioritize deals in: ${activeVerticals}.`;
     }
     const data = await resp.json();
     const text = (data.content||[]).map(b=>b.type==='text'?b.text:'').join('');
-    const start = text.indexOf('['), end = text.lastIndexOf(']');
+    const start = text.indexOf('[');
     if (start===-1) throw new Error('No deal data returned. Try scanning again.');
-    deals = JSON.parse(text.slice(start, end+1));
+    const end = text.lastIndexOf(']');
+    let jsonStr = end !== -1 ? text.slice(start, end+1) : text.slice(start);
+    let parsed;
+    try { parsed = JSON.parse(jsonStr); } catch(e) {
+      const lastClose = jsonStr.lastIndexOf('}');
+      if (lastClose !== -1) { jsonStr = jsonStr.slice(0, lastClose+1) + ']'; parsed = JSON.parse(jsonStr); }
+      else { throw new Error('Could not parse deal data — please try scanning again.'); }
+    }
+    deals = parsed;
     save('pe_deals', deals);
     const now = new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     document.getElementById('m-total').textContent = deals.length;
